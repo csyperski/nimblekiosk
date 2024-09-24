@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-if [ -f ~/.rise.config ]; then
+if [ -f ~/.nimble.config ]; then
 	echo "This script has already been executed";
 	exit 1;
 fi
