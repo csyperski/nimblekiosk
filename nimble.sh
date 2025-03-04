@@ -51,6 +51,10 @@ echo "$hostname" > sudo tee /etc/hostname
 
 echo "1 2 * * * root /sbin/reboot" | sudo tee -a /etc/cron.d/restart
 
+		echo "
+tmpfs    /tmp        tmpfs      defaults,noatime,mode=1777,size=500m    0    0
+tmpfs    /var/log    tmpfs      defaults,noatime,mode=1777,size=500m    0    0
+tmpfs    /var/tmp    tmpfs      defaults,noatime,mode=1777,size=100m    0    0" | sudo tee -a /etc/fstab
 
 echo -n  "hostname=$hostname
 ip=$ip
