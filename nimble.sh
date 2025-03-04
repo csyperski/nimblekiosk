@@ -1,94 +1,93 @@
 #!/bin/bash
 
-
+# Check if setup has already been completed
 if [ -f ~/.nimble.config ]; then
-	echo "This script has already been executed";
-	exit 1;
+  echo "This script has already been executed"
+  exit 1
 fi
 
-echo "Starting Nimble Station Setup"
-
-echo -n "Enter a hostname:"
-read hostname
+echo "Starting Nimble Station Setup..."
 echo ""
 
-echo -n "Enter an IP Address: "
-read ip
-echo "";
+sudo nmcli radio wifi on
+sudo iw reg set US
+sudo iwlist wlan0 scan
+sleep 5
+sudo nmcli dev wifi connect d88-guest
 
-echo -n "Enter a gateway Address: ";
-read gateway
-echo "";
+# Prompt for static network settings
+read -p "Enter a hostname: " hostname
+read -p "Enter an IP Address: " ip
+read -p "Enter a Gateway Address: " gateway
+read -p "Enter a DNS Address: " dns
 
-echo -n "Enter a DNS Address: ";
-read dns
-echo ""
-
-echo ""
+# Configure wired connection with provided details
 echo "Using hostname: $hostname"
 echo "Using IP: $ip"
-echo ""
 
-sudo nmcli c mod 'Wired connection 1' ipv4.addresses $ip/24 ipv4.method manual
-sudo nmcli c mod 'Wired connection 1' ipv4.gateway $gateway
-sudo nmcli c mod 'Wired connection 1' ipv4.dns $dns
+sudo nmcli c mod 'Wired connection 1' ipv4.addresses "$ip/24" ipv4.method manual
+sudo nmcli c mod 'Wired connection 1' ipv4.gateway "$gateway"
+sudo nmcli c mod 'Wired connection 1' ipv4.dns "$dns"
 sudo nmcli c down 'Wired connection 1' && sudo nmcli c up 'Wired connection 1'
 
 
-
+# Allow time for NTP to update
 echo "Giving some time for NTP to update..."
-sleep 30
-echo "Proceeding."
+sleep 10
+echo "Proceeding with system updates..."
 
-sleep 5
-sudo apt update; 
-sudo apt upgrade -y;
-sudo apt install -y unattended-upgrades unclutter;
+# System updates and package installation
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y unattended-upgrades unclutter
 sudo apt autoremove -y
 
-echo "US/Central" > sudo tee /etc/timezone
-echo "$hostname" > sudo tee /etc/hostname
+# Set timezone and hostname
+echo "US/Central" | sudo tee /etc/timezone
+echo "$hostname" | sudo tee /etc/hostname
 
+# Add cron job to reboot the system daily
 echo "1 2 * * * root /sbin/reboot" | sudo tee -a /etc/cron.d/restart
 
-		echo "
+# Configure temporary filesystems
+echo "
 tmpfs    /tmp        tmpfs      defaults,noatime,mode=1777,size=500m    0    0
 tmpfs    /var/log    tmpfs      defaults,noatime,mode=1777,size=500m    0    0
-tmpfs    /var/tmp    tmpfs      defaults,noatime,mode=1777,size=100m    0    0" | sudo tee -a /etc/fstab
+tmpfs    /var/tmp    tmpfs      defaults,noatime,mode=1777,size=100m    0    0
+" | sudo tee -a /etc/fstab
 
-echo -n  "hostname=$hostname
-ip=$ip
-gateway=$gateway
-dns=$dns" > ~/.nimble.config;
+# Save configuration details to file
+echo -e "hostname=$hostname\nip=$ip\ngateway=$gateway\ndns=$dns" > ~/.nimble.config
 
-echo "unclutter -idle 0" |  sudo tee -a /etc/X11/Xsession.d/99x11-common_start
+# Add unclutter command to hide cursor in X11 session
+echo "unclutter -idle 0" | sudo tee -a /etc/X11/Xsession.d/99x11-common_start
 
+# Download custom wallpaper
 sudo wget -O /usr/share/rpd-wallpaper/fisherman.jpg https://www.dupage88.net/site/public/agoraimages/?item=18485
 
+# Configure Wayland settings
 sudo raspi-config nonint do_wayland W2
 
-sudo nmcli radio wifi on
-sudo nmcli dev wifi connect d88-guest
-
-cd ~
-
-echo '#!/bin/bash
-while [ 1 ]; do
+# Create the kiosk.sh script to launch Chromium in kiosk mode
+cat <<EOF > ~/kiosk.sh
+#!/bin/bash
+while true; do
    amixer -q -M sset Master 90%
    chromium-browser https://nimble.dupage88.net --kiosk --noerrdialogs --disable-pinch --disable-infobars --no-first-run --enable-features=OverlayScrollbar --start-maximized
-done' | tee ~/kiosk.sh
+done
+EOF
 
 chmod +x ~/kiosk.sh
 
-#echo "exec /home/admin/kiosk.sh" |  sudo tee -a /etc/X11/Xsession.d/99x11-common_start
-
-echo "
+# Configure autostart for kiosk mode
+cat <<EOF | sudo tee -a ~/.config/wayfire.ini
 [autostart]
 xdg-autostart = lxsession-xdg-autostart
 kiosk = bash ~/kiosk.sh
 screensaver = false
-dpms = false" | sudo tee -a .config/wayfire.ini
+dpms = false
+EOF
 
+# Completion message
 echo "==========================================================="
-echo "Nimble Station Setup Completed and Please reboot the system"
+echo "Nimble Station Setup Completed. Please reboot the system."
 echo "==========================================================="
