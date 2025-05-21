@@ -67,6 +67,9 @@ sudo wget -O /usr/share/rpd-wallpaper/fisherman.jpg https://www.dupage88.net/sit
 # Configure Wayland settings
 sudo raspi-config nonint do_wayland W2
 
+# Disable on-screen keyboard
+sudo raspi-config nonint do_squeekboard S3
+
 # Create the kiosk.sh script to launch Chromium in kiosk mode
 cat <<EOF > ~/kiosk.sh
 #!/bin/bash
