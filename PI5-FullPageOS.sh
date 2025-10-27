@@ -32,4 +32,6 @@ rsync -avc  /home/admin/jobrelease_MF/nfc /home/admin/
 java -jar /home/admin/nfc/nfc-reader-depends-0.5.1-SNAPSHOT.jar /home/admin/nfc/nimblesettings.properties &
 exec $STARTUP
 EOF
+
+CHOICE=$(whiptail --title "System Control" --menu "Select an action:" 15 50 2 "reboot" "Restart the system." "poweroff" "Shut down and power off." 3>&1 1>&2 2>&3); EXIT_STATUS=$?; if [ $EXIT_STATUS -eq 0 >
 #sudo reboot
