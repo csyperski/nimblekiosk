@@ -1,5 +1,8 @@
 #!/bin/bash
 # kiosk_setup.sh: One-time script for system configuration and installation.
+
+NEW_HOST=$(whiptail --title "Change Hostname" --inputbox "The current hostname is $(hostname).\nEnter a new hostname:" 10 60 "$(hostname)" 3>&1 1>&2 2>&3); exitstatus=$?; if [ $exitstatus = 0 ] && [ -n "$NEW_HOST" ]; then OLD_HOST=$(hostname); if (whiptail --title "Confirmation" --yesno "Are you sure you want to change the hostname to $NEW_HOST? This will update /etc/hosts and reboot." 10 60); then if command -v hostnamectl &> /dev/null; then sudo hostnamectl set-hostname "$NEW_HOST" --static && sudo sed -i "/\(127\.0\.0\.1\|127\.0\.1\.1\)/s/\s$OLD_HOST\(\s\)\?/\ $NEW_HOST\1/Ig" /etc/hosts && sudo sed -i "/\(127\.0\.0\.1\|127\.0\.1\.1\)/s/\s$OLD_HOST\.localdomain\(\s\)\?/\ $NEW_HOST\.localdomain\1/Ig" /etc/hosts && sudo reboot && whiptail --title "Success" --msgbox "Hostname changed to $NEW_HOST permanently and /etc/hosts updated. The system is rebooting now." 10 60 || whiptail --title "Error" --msgbox "Failed to change hostname or update /etc/hosts. Make sure you have sudo privileges." 10 60; else sudo hostname "$NEW_HOST" && echo "$NEW_HOST" | sudo tee /etc/hostname > /dev/null && whiptail --title "Manual Steps Needed" --msgbox "Hostname temporarily changed to $NEW_HOST. Manual steps needed for /etc/hosts and permanence." 15 60; fi; else whiptail --title "Cancelled" --msgbox "Hostname change cancelled." 10 60; fi; else whiptail --title "Cancelled" --msgbox "Hostname change cancelled or empty input provided." 10 60; fi
+
 set -euo pipefail
 
 # --- Configuration Variables ---
@@ -27,7 +30,7 @@ collect_config() {
     whiptail --title "Release Station Setup" --msgbox "Starting system configuration. All settings will be saved to $CONFIG_FILE." 8 60
 
     # 1. Hostname
-    hostname=$(whiptail --title "Hostname" --inputbox "Enter a unique hostname for this kiosk." 8 60 "kiosk-01" 3>&1 1>&2 2>&3) || exit 1
+    hostname=$(whiptail --title "Hostname" --inputbox "Enter a unique hostname for this kiosk." 8 60 $(hostname) 3>&1 1>&2 2>&3) || exit 1
 
     # 2. What is for Nimble or PaperCut
     whatfor=$(whiptail --title "What is for Nimber or PaperCut" --inputbox "What is for Nimble or PaperCut" 8 60 "PaperCut" 3>&1 1>&2 2>&3) || exit 1
@@ -121,10 +124,10 @@ sudo raspi-config nonint do_configure_keyboard us
 sudo raspi-config nonint do_blanking 1
 sudo raspi-config nonint do_squeekboard S3
 sudo raspi-config nonint do_wifi_country US
-echo "usb_max_current_enable=1" | sudo tee -a sudo tee -a /boot/firmware/config.txt
+echo "usb_max_current_enable=1" | sudo tee -a /boot/firmware/config.txt
 echo "https://nimble.dupage88.net/kiosk" | sudo tee /boot/firmware/fullpageos.txt
-sudo sed -i '/^\#\!\/bin\/bash/a\exit'  /opt/custompios/scripts/start_chromium_browser
-
+sudo sed -i '\|^#\!/bin/bash|a\'"$KIOSK_RUNTIME_SCRIPT"'\nexit' /opt/custompios/scripts/start_chromium_browser
+sudo chmod +x /opt/custompios/scripts/rotate.sh
 }
 
 configure_network() {
@@ -178,11 +181,11 @@ setup_autostart() {
     echo "Configuring Kiosk autostart and cleanup..."
 
     # 1. Point X session to the runtime script
-    echo -e "$KIOSK_RUNTIME_SCRIPT\nexec \$STARTUP" | sudo tee /etc/X11/Xsession.d/99x11-common_start > /dev/null
+    #echo -e "$KIOSK_RUNTIME_SCRIPT\nexec \$STARTUP" | sudo tee /etc/X11/Xsession.d/99x11-common_start > /dev/null
 
     # 2. Disable default Chromium launch on boot
     if [[ -f "/opt/custompios/scripts/start_chromium_browser" ]]; then
-        sudo sed -i '/^\#\!\/bin\/bash/a\exit'  /opt/custompios/scripts/start_chromium_browser
+        sudo sed -i '\|^#\!/bin/bash|a\'"$KIOSK_RUNTIME_SCRIPT"'\nexit' /opt/custompios/scripts/start_chromium_browser
     fi
 
     # 3. Disable keyring prompt
@@ -362,17 +365,18 @@ sed -i "s/@rgb@/$rgb/g" "$BIN_DIR/nfc/settings.properties"
 	echo "Launching main Print Release application..."
 	"$BIN_DIR/printrelease/pc-release-linux.sh"
     elif [[ "$whatfor" == "Nimble" ]]; then
-        pactl set-default-sink alsa_output.usb-JOUNIVO_JOUNIVO_JV801_20200822-00.analog-stereo
+        pactl set-default-sink $(pactl list sinks | grep 'Name: alsa_output' | cut -d ' ' -f 2 | head -n 1)
 	pactl set-sink-mute @DEFAULT_SINK@ 0
 	pactl set-sink-volume @DEFAULT_SINK@ 95%
 	java -jar /home/admin/bin/nfc/nfc-reader-depends-0.5.1-SNAPSHOT.jar /home/admin/bin/nfc/nimblesettings.properties &
-	chromium https://nimble.dupage88.net --kiosk --noerrdialogs --disable-pinch --disable-infobars --no-first-run --enable-features=OverlayScrollbar --start-maximized
+	chromium https://nimble.dupage88.net --kiosk --touch-events=enabled --disable-pinch --noerrdialogs --disable-session-crashed-bubble --simulate-outdated-no-au='Tue, 31 Dec 2099 23:59:59 GMT' --disable-component-update --overscroll-history-navigation=0 --disable-features=TranslateUI --autoplay-policy=no-user-gesture-required  
     else
-	sleep 20
+	#sleep 20
         sudo reboot
     fi
 
-EOF
+
+
 
 chmod +x "$KIOSK_RUNTIME_SCRIPT"
 echo "Setup complete. Please reboot to start the kiosk in runtime mode."
